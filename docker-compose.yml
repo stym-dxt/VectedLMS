@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vectedlms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vectedlms}
+      POSTGRES_DB: ${POSTGRES_DB:-vectedlms}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vectedlms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vectedlms}:${POSTGRES_PASSWORD:-vectedlms}@db:5432/${POSTGRES_DB:-vectedlms}
+      SECRET_KEY: ${SECRET_KEY}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://backend:8000}
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
