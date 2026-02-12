@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     VIDEO_DIR: str = "./uploads/videos"
     MAX_UPLOAD_SIZE: int = 1073741824
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
+    FRONTEND_URL: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:

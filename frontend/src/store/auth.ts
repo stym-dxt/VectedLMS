@@ -3,7 +3,7 @@ import api from "@/lib/api";
 
 interface User {
   id: number;
-  email: string;
+  email: string | null;
   full_name: string | null;
   role: string;
   is_active: boolean;
@@ -17,10 +17,10 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (idToken: string) => Promise<void>;
   register: (
-    email: string,
+    phone: string,
     password: string,
     full_name?: string,
-    phone?: string,
+    email?: string,
   ) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
@@ -49,15 +49,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     await useAuthStore.getState().fetchUser();
   },
 
-  register: async (email: string, password: string, full_name?: string, phone?: string) => {
-    const payload: { email: string; password: string; full_name?: string; phone?: string } = {
-      email,
+  register: async (phone: string, password: string, full_name?: string, email?: string) => {
+    const payload: { phone: string; password: string; full_name?: string; email?: string } = {
+      phone: phone.trim().replace(/\s/g, ""),
       password,
     };
     if (full_name && full_name.trim()) payload.full_name = full_name.trim();
-    if (phone && phone.trim()) payload.phone = phone.trim().replace(/\s/g, "");
-    await api.post("/auth/register", payload);
-    await useAuthStore.getState().login(email, password);
+    if (email && email.trim()) payload.email = email.trim();
+    const res = await api.post("/auth/register", payload);
+    const { access_token } = res.data;
+    localStorage.setItem("token", access_token);
+    set({ token: access_token, isAuthenticated: true });
+    await useAuthStore.getState().fetchUser();
   },
 
   logout: () => {

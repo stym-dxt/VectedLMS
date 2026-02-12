@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.models.password_reset import PasswordResetToken
 from app.models.course import Course, Lesson, Module, Enrollment
 from app.models.payment import Payment
 from app.models.content import VideoContent

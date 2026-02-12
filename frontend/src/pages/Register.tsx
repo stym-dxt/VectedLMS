@@ -18,19 +18,18 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
-    // Validation
-    if (!email || !email.trim()) {
-      setError("Email is required");
+    const trimmedPhone = phone.trim().replace(/\s/g, "");
+    if (!trimmedPhone || trimmedPhone.replace(/^\+/, "").length < 10) {
+      setError("Phone number is required (with country code) for OTP login");
       return;
     }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setError("Please enter a valid email address");
-      return;
+    if (email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setError("Please enter a valid email address");
+        return;
+      }
     }
-
     if (!password || password.length < 6) {
       setError("Password must be at least 6 characters long");
       return;
@@ -48,9 +47,12 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const trimmedFullName = fullName.trim();
-      const trimmedPhone = phone.trim().replace(/\s/g, "");
-      await register(email, password, trimmedFullName || undefined, trimmedPhone || undefined);
+      await register(
+        trimmedPhone,
+        password,
+        fullName.trim() || undefined,
+        email.trim() || undefined
+      );
       navigate("/dashboard");
     } catch (err: any) {
       let errorMessage = "Registration failed. Please try again.";
@@ -149,38 +151,38 @@ export default function Register() {
 
             <div>
               <label
-                htmlFor="email"
-                className="block text-sm font-medium text-slate-300 mb-2"
-              >
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label
                 htmlFor="phone"
                 className="block text-sm font-medium text-slate-300 mb-2"
               >
-                Phone (optional – for OTP login later)
+                Phone number <span className="text-slate-500">(required for OTP login)</span>
               </label>
               <input
                 id="phone"
                 name="phone"
                 type="tel"
+                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="+91 98765 43210"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-slate-300 mb-2"
+              >
+                Email <span className="text-slate-500">(optional)</span>
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="you@example.com"
               />
             </div>
 
