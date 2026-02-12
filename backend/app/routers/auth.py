@@ -7,8 +7,9 @@ from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.config import settings
 from app.core.dependencies import get_current_active_user
+from app.core.firebase import verify_firebase_id_token
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, VerifyPhoneRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -104,6 +105,39 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Login failed: {str(e)}"
         )
+
+@router.post("/verify-phone", response_model=Token)
+async def verify_phone(payload: VerifyPhoneRequest, db: Session = Depends(get_db)):
+    """Verify Firebase phone ID token and return our JWT. User must already be registered with this phone."""
+    phone = verify_firebase_id_token(payload.id_token)
+    if not phone:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired verification code. Please try again."
+        )
+    # Find user by phone (normalize to digits for comparison)
+    def digits_only(s: str) -> str:
+        return "".join(c for c in (s or "") if c.isdigit())
+    phone_digits = digits_only(phone)
+    users_with_phone = db.query(User).filter(User.phone.isnot(None)).all()
+    user = next((u for u in users_with_phone if digits_only(u.phone) == phone_digits), None)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This phone number is not registered. Please register first and add your phone number, or sign in with email."
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account is inactive"
+        )
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.id}, expires_delta=access_token_expires
+    )
+    logger.info(f"User logged in via phone: {user.email}")
+    return {"access_token": access_token, "token_type": "bearer"}
+
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)):

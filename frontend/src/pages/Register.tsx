@@ -8,6 +8,7 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { register } = useAuthStore();
@@ -48,7 +49,8 @@ export default function Register() {
     setLoading(true);
     try {
       const trimmedFullName = fullName.trim();
-      await register(email, password, trimmedFullName || undefined);
+      const trimmedPhone = phone.trim().replace(/\s/g, "");
+      await register(email, password, trimmedFullName || undefined, trimmedPhone || undefined);
       navigate("/dashboard");
     } catch (err: any) {
       let errorMessage = "Registration failed. Please try again.";
@@ -161,6 +163,24 @@ export default function Register() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-slate-300 mb-2"
+              >
+                Phone (optional – for OTP login later)
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="+91 98765 43210"
               />
             </div>
 

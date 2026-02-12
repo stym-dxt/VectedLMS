@@ -15,10 +15,12 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithPhone: (idToken: string) => Promise<void>;
   register: (
     email: string,
     password: string,
     full_name?: string,
+    phone?: string,
   ) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
@@ -39,14 +41,21 @@ export const useAuthStore = create<AuthState>((set) => ({
     await useAuthStore.getState().fetchUser();
   },
 
-  register: async (email: string, password: string, full_name?: string) => {
-    const payload: { email: string; password: string; full_name?: string } = {
+  loginWithPhone: async (idToken: string) => {
+    const response = await api.post("/auth/verify-phone", { id_token: idToken });
+    const { access_token } = response.data;
+    localStorage.setItem("token", access_token);
+    set({ token: access_token, isAuthenticated: true });
+    await useAuthStore.getState().fetchUser();
+  },
+
+  register: async (email: string, password: string, full_name?: string, phone?: string) => {
+    const payload: { email: string; password: string; full_name?: string; phone?: string } = {
       email,
       password,
     };
-    if (full_name && full_name.trim()) {
-      payload.full_name = full_name.trim();
-    }
+    if (full_name && full_name.trim()) payload.full_name = full_name.trim();
+    if (phone && phone.trim()) payload.phone = phone.trim().replace(/\s/g, "");
     await api.post("/auth/register", payload);
     await useAuthStore.getState().login(email, password);
   },
