@@ -1,0 +1,20 @@
+# Nginx server block for VectedLMS (students subdomain).
+# Copy this file to the server as /etc/nginx/sites-available/vectedlms then enable and reload.
+# server_name includes both spellings so either students.vectorskillacademy.com or students.vectorskillaacademy.com works.
+# Port 3005 must match FRONTEND_PORT in .env.
+
+server {
+    listen 80;
+    server_name students.vectorskillacademy.com students.vectorskillaacademy.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3005;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# After adding this, run: certbot --nginx -d students.vectorskillaacademy.com
