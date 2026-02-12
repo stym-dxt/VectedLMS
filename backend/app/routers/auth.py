@@ -32,7 +32,10 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         users_with_phone = db.query(User).filter(User.phone.isnot(None)).all()
         if any(_digits_only(u.phone) == phone_digits for u in users_with_phone):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number already registered")
-        hashed_password = get_password_hash(user_data.password)
+        raw_password = (user_data.password or "").strip()
+        if not raw_password:
+            raw_password = secrets.token_urlsafe(32)
+        hashed_password = get_password_hash(raw_password)
         new_user = User(
             email=user_data.email or None,
             password_hash=hashed_password,

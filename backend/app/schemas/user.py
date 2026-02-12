@@ -11,7 +11,7 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
     phone: str
-    password: str
+    password: Optional[str] = None  # Optional for phone-only signup; backend sets random if missing
 
     @field_validator("phone")
     @classmethod

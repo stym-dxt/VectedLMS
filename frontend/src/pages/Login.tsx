@@ -1,20 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
 import { AuthLayout } from "@/components/AuthLayout";
 import { auth, isFirebaseConfigured } from "@/lib/firebase";
 import type { ConfirmationResult } from "firebase/auth";
 
-type LoginMode = "email" | "phone";
-
-type Step = "phone" | "otp" | "complete"; // complete = new user, show form
+type Step = "phone" | "otp";
 
 export default function Login() {
-  const [mode, setMode] = useState<LoginMode>("phone");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<Step>("phone");
@@ -22,18 +17,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<HTMLDivElement>(null);
-  const { login, loginWithPhone, register } = useAuthStore();
+  const { login, loginWithPhone } = useAuthStore();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (mode === "phone") {
-      setError("");
-      setStep("phone");
-      setOtp("");
-      setPhone("");
-      confirmationRef.current = null;
-    }
-  }, [mode]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,42 +76,10 @@ export default function Login() {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
       if (status === 404 || (detail && String(detail).toLowerCase().includes("not registered"))) {
-        setStep("complete");
-        setError("");
+        setError("This number isn't registered. Sign up first to create an account.");
       } else {
         setError(detail || err.message || "Invalid code. Try again.");
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCompleteAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const trimmedPhone = phone.trim().replace(/\s/g, "");
-    const phoneForBackend = trimmedPhone.startsWith("+") ? trimmedPhone : `+91${trimmedPhone}`;
-    if (email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
-        setError("Please enter a valid email address.");
-        return;
-      }
-    }
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await register(phoneForBackend, password, fullName.trim() || undefined, email.trim() || undefined);
-      navigate("/dashboard");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Could not create account. Try again.");
     } finally {
       setLoading(false);
     }
@@ -146,74 +99,49 @@ export default function Login() {
 
   return (
     <AuthLayout
-      title="Welcome"
-      subtitle="Sign in or create an account with your phone"
+      title="Sign in"
+      subtitle="Use your phone or email to continue"
       footerPrompt="Don't have an account?"
       footerLinkText="Sign up"
       footerLinkTo="/register"
     >
-      <div className="flex rounded-lg bg-slate-800/50 p-1 mb-6">
-        <button
-          type="button"
-          onClick={() => setMode("phone")}
-          className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${mode === "phone" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-        >
-          Phone
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("email")}
-          className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${mode === "email" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-        >
-          Email
-        </button>
-      </div>
+      <div ref={recaptchaRef} id="recaptcha-container" className="sr-only" aria-hidden="true" />
 
       {error && (
         <div className="mb-6 bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg text-sm">
           {error}
+          {error.includes("isn't registered") && (
+            <p className="mt-2">
+              <Link to="/register" className="font-medium text-blue-300 hover:text-blue-200 underline">
+                Sign up with your phone
+              </Link>
+            </p>
+          )}
         </div>
       )}
 
-      {mode === "phone" && <div ref={recaptchaRef} id="recaptcha-container" />}
-
-      {mode === "email" && (
-        <form className="space-y-6" onSubmit={handleEmailSubmit}>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
-            <input id="email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="you@example.com" />
+      {/* Phone sign-in */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-3">Sign in with phone</h3>
+        {step === "phone" && (
+          <div className="space-y-4">
+            <input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputClass}
+              placeholder="+91 98765 43210"
+            />
+            <p className="text-xs text-slate-500">We'll send a one-time code via SMS.</p>
+            <button type="button" onClick={sendOtp} disabled={loading} className={btnClass}>
+              {loading ? <>{loadingSpinner} Sending...</> : "Send code"}
+            </button>
           </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">Password</label>
-            <input id="password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} placeholder="Enter your password" />
-            <div className="mt-2 text-right">
-              <Link to="/forgot-password" className="text-sm text-blue-400 hover:text-blue-300">Forgot password?</Link>
-            </div>
-          </div>
-          <button type="submit" disabled={loading} className={btnClass}>
-            {loading ? <>{loadingSpinner} Signing in...</> : "Sign in"}
-          </button>
-        </form>
-      )}
-
-      {mode === "phone" && step === "phone" && (
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-slate-300 mb-2">Phone number</label>
-            <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
-            <p className="mt-1 text-xs text-slate-500">Include country code. We'll send a one-time code via SMS.</p>
-          </div>
-          <button type="button" onClick={sendOtp} disabled={loading} className={btnClass}>
-            {loading ? <>{loadingSpinner} Sending...</> : "Send code"}
-          </button>
-        </div>
-      )}
-
-      {mode === "phone" && step === "otp" && (
-        <form className="space-y-4" onSubmit={verifyOtp}>
-          <p className="text-sm text-slate-400">Code sent to {phone}. Enter it below.</p>
-          <div>
-            <label htmlFor="otp" className="block text-sm font-medium text-slate-300 mb-2">Verification code</label>
+        )}
+        {step === "otp" && (
+          <form className="space-y-4" onSubmit={verifyOtp}>
+            <p className="text-sm text-slate-400">Code sent to {phone}</p>
             <input
               id="otp"
               type="text"
@@ -224,40 +152,60 @@ export default function Login() {
               className={`${inputClass} text-center text-lg tracking-widest`}
               placeholder="000000"
             />
-          </div>
-          <button type="submit" disabled={loading || otp.length !== 6} className={btnClass}>
-            {loading ? <>{loadingSpinner} Verifying...</> : "Verify & continue"}
-          </button>
-          <button type="button" onClick={() => { setStep("phone"); setOtp(""); confirmationRef.current = null; }} className="w-full text-sm text-slate-400 hover:text-white">
-            Use a different number
-          </button>
-        </form>
-      )}
+            <button type="submit" disabled={loading || otp.length !== 6} className={btnClass}>
+              {loading ? <>{loadingSpinner} Verifying...</> : "Verify & sign in"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStep("phone"); setOtp(""); setError(""); confirmationRef.current = null; }}
+              className="w-full text-sm text-slate-400 hover:text-white"
+            >
+              Use a different number
+            </button>
+          </form>
+        )}
+      </div>
 
-      {mode === "phone" && step === "complete" && (
-        <form className="space-y-4" onSubmit={handleCompleteAccount}>
-          <p className="text-sm text-slate-300">This number isn't registered yet. Add a few details to create your account.</p>
-          <div>
-            <label htmlFor="complete-email" className="block text-sm font-medium text-slate-300 mb-2">Email <span className="text-slate-500">(optional)</span></label>
-            <input id="complete-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="you@example.com" />
-          </div>
-          <div>
-            <label htmlFor="complete-name" className="block text-sm font-medium text-slate-300 mb-2">Full name <span className="text-slate-500">(optional)</span></label>
-            <input id="complete-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} placeholder="Your name" />
-          </div>
-          <div>
-            <label htmlFor="complete-password" className="block text-sm font-medium text-slate-300 mb-2">Password</label>
-            <input id="complete-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} placeholder="At least 6 characters" minLength={6} />
-          </div>
-          <div>
-            <label htmlFor="complete-confirm" className="block text-sm font-medium text-slate-300 mb-2">Confirm password</label>
-            <input id="complete-confirm" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} placeholder="Re-enter password" minLength={6} />
+      {/* Divider */}
+      <div className="relative mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-700" />
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-3 bg-slate-900/80 text-slate-500">or</span>
+        </div>
+      </div>
+
+      {/* Email sign-in */}
+      <div>
+        <h3 className="text-sm font-medium text-slate-400 mb-3">Sign in with email</h3>
+        <form className="space-y-4" onSubmit={handleEmailSubmit}>
+          <input
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
+            placeholder="you@example.com"
+          />
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={inputClass}
+            placeholder="Password"
+          />
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-sm text-blue-400 hover:text-blue-300">Forgot password?</Link>
           </div>
           <button type="submit" disabled={loading} className={btnClass}>
-            {loading ? <>{loadingSpinner} Creating account...</> : "Create account & continue"}
+            {loading ? <>{loadingSpinner} Signing in...</> : "Sign in with email"}
           </button>
         </form>
-      )}
+      </div>
     </AuthLayout>
   );
 }

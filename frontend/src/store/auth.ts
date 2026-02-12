@@ -18,7 +18,7 @@ interface AuthState {
   loginWithPhone: (idToken: string) => Promise<void>;
   register: (
     phone: string,
-    password: string,
+    password?: string,
     full_name?: string,
     email?: string,
   ) => Promise<void>;
@@ -49,11 +49,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     await useAuthStore.getState().fetchUser();
   },
 
-  register: async (phone: string, password: string, full_name?: string, email?: string) => {
-    const payload: { phone: string; password: string; full_name?: string; email?: string } = {
+  register: async (phone: string, password?: string, full_name?: string, email?: string) => {
+    const payload: { phone: string; password?: string; full_name?: string; email?: string } = {
       phone: phone.trim().replace(/\s/g, ""),
-      password,
     };
+    if (password && password.trim()) payload.password = password.trim();
     if (full_name && full_name.trim()) payload.full_name = full_name.trim();
     if (email && email.trim()) payload.email = email.trim();
     const res = await api.post("/auth/register", payload);
