@@ -63,11 +63,11 @@ export default function Login() {
     setLoading(true);
     try {
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
-      if (!recaptchaRef.current) return;
+      if (!recaptchaRef.current || !auth) return;
       const recaptchaVerifier = new RecaptchaVerifier(
+        auth,
         recaptchaRef.current,
         { size: "invisible" },
-        () => {},
       );
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
       confirmationRef.current = confirmation;
