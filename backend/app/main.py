@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 import logging
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, users, courses, payments, content, live_classes, notes, roadmaps, certifications, career, testimonials, onboarding, admin, video
+from app.routers import auth, users, courses, payments, content, live_classes, notes, roadmaps, certifications, career, testimonials, onboarding, admin, video, dashboard, calendar
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,6 +86,8 @@ app.include_router(testimonials.router, prefix="/api/testimonials", tags=["Testi
 app.include_router(onboarding.router, prefix="/api/onboarding", tags=["Onboarding"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(video.router, prefix="/api/video", tags=["Video"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(calendar.router, prefix="/api/calendar", tags=["Calendar Sync"])
 
 @app.get("/")
 async def root():

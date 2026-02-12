@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 1073741824
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     FRONTEND_URL: str = ""
+    GOOGLE_CALENDAR_ID: str = ""
+    GOOGLE_CALENDAR_DEFAULT_COURSE_ID: int = 1
 
     @property
     def cors_origins_list(self) -> List[str]:

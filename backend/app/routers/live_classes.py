@@ -1,13 +1,14 @@
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.dependencies import get_current_active_user, require_admin
 from app.models.user import User
-from app.models.live_class import LiveClass
+from app.models.live_class import LiveClass, LiveClassAttendee
 from app.models.course import Course, Enrollment
 from app.schemas.live_class import LiveClassCreate, LiveClassUpdate, LiveClassResponse
 
@@ -20,19 +21,57 @@ def generate_meet_link() -> str:
 @router.get("", response_model=List[LiveClassResponse])
 async def get_live_classes(
     course_id: int = None,
+    include_past: bool = False,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    now = datetime.now(timezone.utc)
     query = db.query(LiveClass)
+
     if course_id:
         query = query.filter(LiveClass.course_id == course_id)
-        enrollment = db.query(Enrollment).filter(
-            Enrollment.user_id == current_user.id,
-            Enrollment.course_id == course_id
-        ).first()
-        if not enrollment and current_user.role != "admin":
-            raise HTTPException(status_code=403, detail="Not enrolled in this course")
-    return query.filter(LiveClass.scheduled_at >= datetime.utcnow()).order_by(LiveClass.scheduled_at).all()
+        if current_user.role != "admin":
+            enrollment = db.query(Enrollment).filter(
+                Enrollment.user_id == current_user.id,
+                Enrollment.course_id == course_id
+            ).first()
+            if not enrollment:
+                raise HTTPException(status_code=403, detail="Not enrolled in this course")
+    elif current_user.role != "admin":
+        enrolled_course_ids = [
+            row[0] for row in db.query(Enrollment.course_id).filter(
+                Enrollment.user_id == current_user.id
+            ).distinct().all()
+        ]
+        # Also include live classes where this user is an invitee (VSA batch/calendar invite)
+        user_email = (current_user.email or "").strip().lower()
+        invited_class_ids = []
+        if user_email:
+            invited_class_ids = [
+                row[0] for row in db.query(LiveClassAttendee.live_class_id).filter(
+                    LiveClassAttendee.email == user_email
+                ).distinct().all()
+            ]
+        allowed_course_ids = set(enrolled_course_ids)
+        allowed_class_ids = set(invited_class_ids)
+        if not allowed_course_ids and not allowed_class_ids:
+            return []
+        conds = []
+        if allowed_course_ids:
+            conds.append(LiveClass.course_id.in_(allowed_course_ids))
+        if allowed_class_ids:
+            conds.append(LiveClass.id.in_(allowed_class_ids))
+        query = query.filter(or_(*conds))
+
+    if not include_past:
+        query = query.filter(LiveClass.scheduled_at >= now).order_by(LiveClass.scheduled_at.asc())
+        return query.all()
+
+    all_classes = query.order_by(LiveClass.scheduled_at.desc()).all()
+    upcoming = [c for c in all_classes if c.scheduled_at >= now]
+    past = [c for c in all_classes if c.scheduled_at < now]
+    upcoming.sort(key=lambda c: c.scheduled_at)
+    return upcoming + past
 
 @router.get("/{class_id}", response_model=LiveClassResponse)
 async def get_live_class(
@@ -43,16 +82,28 @@ async def get_live_class(
     live_class = db.query(LiveClass).filter(LiveClass.id == class_id).first()
     if not live_class:
         raise HTTPException(status_code=404, detail="Live class not found")
-    
+
+    if current_user.role == "admin":
+        return live_class
+
     enrollment = db.query(Enrollment).filter(
         Enrollment.user_id == current_user.id,
         Enrollment.course_id == live_class.course_id
     ).first()
-    
-    if not enrollment and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not enrolled in this course")
-    
-    return live_class
+    if enrollment:
+        return live_class
+
+    # Allow if user was added as invitee (VSA batch/calendar invite)
+    user_email = (current_user.email or "").strip().lower()
+    if user_email:
+        is_attendee = db.query(LiveClassAttendee).filter(
+            LiveClassAttendee.live_class_id == live_class.id,
+            LiveClassAttendee.email == user_email,
+        ).first()
+        if is_attendee:
+            return live_class
+
+    raise HTTPException(status_code=403, detail="Not enrolled in this course or not invited to this session")
 
 @router.post("", response_model=LiveClassResponse, status_code=status.HTTP_201_CREATED)
 async def create_live_class(

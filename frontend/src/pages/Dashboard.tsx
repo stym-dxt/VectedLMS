@@ -215,7 +215,7 @@ export default function Dashboard() {
       try {
         await fetchUser();
 
-        const [enrolls, certs, classes, resumes, preps] = await Promise.all([
+        const [enrolls, certs, classes, resumes, preps, summary] = await Promise.all([
           api.get("/courses/my/enrollments").then((r) => r.data).catch((err) => {
             console.error("Error fetching enrollments:", err);
             return [];
@@ -224,7 +224,7 @@ export default function Dashboard() {
             console.error("Error fetching certifications:", err);
             return [];
           }),
-          api.get("/live-classes").then((r) => r.data).catch((err) => {
+          api.get("/live-classes", { params: { include_past: true } }).then((r) => r.data).catch((err) => {
             console.error("Error fetching live classes:", err);
             return [];
           }),
@@ -236,13 +236,20 @@ export default function Dashboard() {
             console.error("Error fetching interview prep:", err);
             return [];
           }),
+          api.get("/dashboard/summary").then((r) => r.data).catch((err) => {
+            console.error("Error fetching dashboard summary:", err);
+            return null;
+          }),
         ]);
 
         setEnrollments(enrolls || []);
+        const s = summary || {};
         setStats({
-          enrollments: (enrolls || []).length,
+          enrollments: s.enrollments_count ?? (enrolls || []).length,
           certifications: (certs || []).length,
-          upcomingClasses: (classes || []).filter((c: any) => !c.is_completed).length,
+          upcomingClasses: s.upcoming_live_classes_count ?? (classes || []).filter((c: any) => !c.is_completed).length,
+          totalPaid: s.total_paid ?? 0,
+          recordedClasses: s.recorded_classes_count ?? 0,
         });
 
         const enrolled = (enrolls || []).length > 0;
@@ -385,11 +392,27 @@ export default function Dashboard() {
               <div className="px-6 py-3 bg-slate-900/50 backdrop-blur-md rounded-xl border border-slate-800 flex items-center gap-3 hover:border-purple-500/50 transition-all">
                 <BookOpen size={20} className="text-purple-400" />
                 <span className="font-bold">{stats.enrollments || 0} Enrollments</span>
-            </div>
+              </div>
+              {isEnrolled && (stats.totalPaid > 0 || stats.recordedClasses > 0) && (
+                <>
+                  {stats.totalPaid > 0 && (
+                    <div className="px-6 py-3 bg-slate-900/50 backdrop-blur-md rounded-xl border border-slate-800 flex items-center gap-3 hover:border-emerald-500/50 transition-all">
+                      <DollarSign size={20} className="text-emerald-400" />
+                      <span className="font-bold">₹{Number(stats.totalPaid).toLocaleString()} paid</span>
+                    </div>
+                  )}
+                  {stats.recordedClasses > 0 && (
+                    <div className="px-6 py-3 bg-slate-900/50 backdrop-blur-md rounded-xl border border-slate-800 flex items-center gap-3 hover:border-amber-500/50 transition-all">
+                      <Play size={20} className="text-amber-400" />
+                      <span className="font-bold">{stats.recordedClasses} Recordings</span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="px-6 py-3 bg-slate-900/50 backdrop-blur-md rounded-xl border border-slate-800 flex items-center gap-3 hover:border-pink-500/50 transition-all">
                 <Rocket size={20} className="text-pink-400" />
                 <span className="font-bold">{isEnrolled ? 'Active' : 'Get Started'}</span>
-          </div>
+              </div>
             </div>
           </motion.div>
         </header>
